@@ -1,3 +1,6 @@
+#define FORCE_HAS_FMA
+// #define FORCE_HAS_AVX
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -27,6 +30,9 @@
 #include <nnpack/transform.h>
 #include <nnpack/relu.h>
 #include <nnpack/softmax.h>
+
+#include <stdio.h>
+#define log(format, ...) fprintf (stderr, format "\n", ##__VA_ARGS__)
 
 struct hardware_info nnp_hwinfo = { };
 static pthread_once_t hwinfo_init_control = PTHREAD_ONCE_INIT;
@@ -354,6 +360,13 @@ static void init_hwinfo(void) {
 	nnp_hwinfo.blocking.l4 = nnp_hwinfo.cache.l4.size;
 	if (nnp_hwinfo.cache.l1.size && nnp_hwinfo.cache.l2.size && nnp_hwinfo.cache.l3.size) {
 		#if NNP_BACKEND_X86_64
+			#ifdef FORCE_HAS_FMA
+			nnp_hwinfo.isa.has_fma3 = 1;
+			#endif
+			#ifdef FORCE_HAS_AVX
+			nnp_hwinfo.isa.has_avx2 = 1;
+			#endif
+
 			if (nnp_hwinfo.isa.has_avx2 && nnp_hwinfo.isa.has_fma3) {
 				nnp_hwinfo.simd_width = 8;
 				nnp_hwinfo.transforms.fft8x8_with_offset_and_store = nnp_fft8x8_with_offset_and_store__avx2;
@@ -424,6 +437,9 @@ static void init_hwinfo(void) {
 					.cX_conjb_transc_upto_mr_x_nr = nnp_c8gemm_conjb_transc_upto_2x2__fma3,
 				};
 				nnp_hwinfo.supported = true;
+			}
+			else {
+				log("Incompatible hardware (has_avx2 = %d, has_fma3 = %d) nnp_initialize() failed", nnp_hwinfo.isa.has_avx2, nnp_hwinfo.isa.has_fma3);
 			}
 		#elif NNP_BACKEND_PSIMD
 			nnp_hwinfo.simd_width = 4;
